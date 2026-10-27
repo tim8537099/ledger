@@ -109,6 +109,37 @@ body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
 .lock p{margin:0;color:var(--muted);font-size:14px}
 .lock input{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:10px 12px;font:inherit;font-size:16px}
 .status .link{color:var(--muted)}
+.sub{font-size:12px;color:var(--muted);text-align:right;margin-top:-6px}
+.hint{font-size:12px;color:var(--muted);margin:0}
+.settle{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.shead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.shead h2{margin:0;font-size:15px;font-weight:700}
+.seg.mini{min-width:140px}
+.seg.mini button{padding:5px 8px;font-size:13px}
+.weeknav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.weeknav button{background:none;border:1px solid var(--line);color:var(--fg);width:30px;height:30px;border-radius:8px;cursor:pointer}
+.weeknav button:disabled{opacity:.35;cursor:default}
+.weeknav span{font-size:13px;color:var(--muted)}
+.verdict{margin:0 0 8px;font-size:16px}
+.verdict b{font-size:20px;font-weight:500;color:var(--accent)}
+.ptable{display:flex;flex-direction:column;gap:2px;font-size:14px}
+.ptable .pr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
+.ptable .pr span:not(:first-child){text-align:right}
+.ptable .pr.head{border-top:0;font-size:12px;color:var(--muted);letter-spacing:.06em}
+.ptable .pr.foot{color:var(--muted);font-size:13px}
+.ptable .hint{margin-top:6px}
+.ghost{align-self:flex-start;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:7px 14px;font:inherit;font-size:14px;cursor:pointer}
+.settleForm{display:flex;flex-direction:column;gap:10px;background:var(--bg);border-radius:10px;padding:12px}
+.settleForm p{margin:0;font-size:14px}
+.amt.small input[type=text]{font-size:22px}
+.settleForm .confirm{padding:0}
+.confirm .ok{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.confirm .edit{margin-right:auto}
+.editbar{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--bg);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--accent);font-weight:500}
+.editbar button{background:none;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:4px 10px;font:inherit;font-size:13px;cursor:pointer}
+.custom{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px}
+.custom input[type=text]{width:64px;text-align:right;font-family:var(--f-num)}
+.chip.big{padding:10px 20px;font-size:16px}
 </style>
 <title>我們的帳本</title>
 </head>
@@ -130,28 +161,69 @@ body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
     <button class="submit" id="unlock" type="button">開始記帳</button>
   </section>
 
+  <section class="lock" id="whoCard" hidden>
+    <h2>這支手機是誰的？</h2>
+    <p>選一次就好，之後記帳時「誰付的」會預設是你。</p>
+    <div class="chips" id="whoPick"></div>
+  </section>
+
   <div id="main">
   <section class="summary" aria-label="本月總覽">
     <svg class="donut" id="donut" viewBox="0 0 140 140" width="140" height="140" role="img" aria-label="支出分類圓餅圖"></svg>
     <div class="totals">
       <div class="trow"><span class="lab">支出</span><span class="val num out" id="tOut">0</span></div>
       <div class="trow"><span class="lab">收入</span><span class="val num in" id="tIn">0</span></div>
+      <div class="sub num" id="tInSplit"></div>
       <div class="trow bal"><span class="lab">結餘</span><span class="val num" id="tBal">0</span></div>
     </div>
     <div class="legend" id="legend"></div>
   </section>
 
+  <section class="settle" aria-label="分帳結算">
+    <div class="shead">
+      <h2>分帳結算</h2>
+      <div class="seg mini" role="group" aria-label="結算範圍">
+        <button type="button" id="tabWeek" aria-pressed="true">本週</button>
+        <button type="button" id="tabAll" aria-pressed="false">累計</button>
+      </div>
+    </div>
+    <div id="weekPane">
+      <div class="weeknav">
+        <button type="button" id="wPrev" aria-label="上一週">‹</button>
+        <span id="weekLabel" class="num"></span>
+        <button type="button" id="wNext" aria-label="下一週">›</button>
+      </div>
+      <p class="verdict" id="weekVerdict"></p>
+      <div class="ptable" id="weekTable"></div>
+    </div>
+    <div id="allPane" hidden>
+      <p class="verdict" id="allVerdict"></p>
+      <div class="ptable" id="allTable"></div>
+      <p class="hint" id="lastSettle"></p>
+      <button type="button" class="ghost" id="settleBtn">記錄還款</button>
+      <div class="settleForm" id="settleForm" hidden>
+        <p id="settleText"></p>
+        <div class="amt small"><span>NT$</span><input id="settleAmt" type="text" inputmode="numeric" aria-label="還款金額"></div>
+        <div class="confirm">
+          <button type="button" id="settleCancel">取消</button>
+          <button type="button" class="ok" id="settleOk">確認已還款</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="quick" aria-label="說一句話記帳">
     <label for="quickText">說一句話記帳</label>
     <div class="qrow">
-      <input id="quickText" type="text" enterkeyhint="done" placeholder="例如：中午便當 120 付現金" autocomplete="off">
+      <input id="quickText" type="text" enterkeyhint="done" placeholder="例如：晚餐火鍋 1200 我刷卡" autocomplete="off">
       <button type="button" id="quickGo">填入</button>
     </div>
-    <p class="hint">點輸入框後，按鍵盤上的麥克風說話。判斷結果會填進下方表單，確認沒錯再按「記一筆」。</p>
+    <p class="hint">按鍵盤上的麥克風說話。可以說「我付」「她付」「個人」。判斷結果會填進下方表單，確認沒錯再按「記一筆」。</p>
     <p class="result" id="quickResult" hidden></p>
   </section>
 
   <form id="form" autocomplete="off">
+    <div class="editbar" id="editBar" hidden><span>正在修改一筆紀錄</span><button type="button" id="editCancel">取消修改</button></div>
     <div class="seg" role="group" aria-label="收支類型">
       <button type="button" id="typeOut" aria-pressed="true">支出</button>
       <button type="button" id="typeIn" aria-pressed="false">收入</button>
@@ -159,22 +231,32 @@ body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
     <div class="amt"><span>NT$</span><input id="amount" type="text" inputmode="numeric" placeholder="0" aria-label="金額"></div>
     <div class="field"><label>分類</label><div class="chips" id="cats"></div></div>
     <div class="field" id="methodField"><label>付款方式</label><div class="chips" id="methods"></div></div>
+    <div class="field"><label id="payerLabel">誰付的</label><div class="chips" id="payers"></div></div>
+    <div class="field" id="ownField"><label>這筆算誰的</label><div class="chips" id="owns"></div></div>
+    <div class="field" id="ratioField"><label>分攤比例（廷：葶）</label>
+      <div class="chips" id="ratios"></div>
+      <div class="custom" id="customRow" hidden><span>廷負擔</span><input id="customPct" type="text" inputmode="numeric" maxlength="3" aria-label="廷負擔百分比"><span>%</span><span class="hint" id="customHint"></span></div>
+    </div>
     <div class="row2">
       <div class="field"><label for="date">日期</label><input id="date" type="date"></div>
       <div class="field"><label for="note">備註</label><input id="note" type="text" placeholder="例如：午餐便當" maxlength="60"></div>
     </div>
-    <div class="field"><label for="who">記錄人（這支手機會記住）</label><input id="who" type="text" placeholder="例如：應廷" maxlength="20"></div>
     <button class="submit" id="submit" type="submit">記一筆</button>
     <p class="msg" id="msg" aria-live="polite"></p>
   </form>
 
   <div class="status"><span id="sync">讀取中…</span><button type="button" id="refresh">重新整理</button></div>
   <section class="ledger" id="ledger" aria-label="明細"></section>
-  <div class="status"><span></span><button type="button" class="link" id="logout">更換通關密碼</button></div>
+  <div class="status"><button type="button" class="link" id="switchMe">這支手機：未設定（切換）</button><button type="button" class="link" id="logout">更換通關密碼</button></div>
   </div>
 </div>
 
 <script>
+// ▼▼▼ 把引號裡的文字換成你的 Apps Script 網頁應用程式網址（https://script.google.com/macros/s/.../exec）▼▼▼
+const API_URL = "https://script.google.com/macros/s/AKfycbwLSmlPXJoCcoC0zCFwHIajoAhanwY-FoQUnoXbc0zEHxpYXuWjTbOHKcKZDjO203xpTw/exec";
+// ▲▲▲
+const PEOPLE=["廷","葶"];
+
 // ===== 語音記帳：把一句話拆成欄位（規則判斷） =====
 const QP_CN_DIGIT={"零":0,"〇":0,"一":1,"二":2,"兩":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
 const QP_CN_UNIT={"十":10,"百":100,"千":1000,"萬":10000,"万":10000};
@@ -261,45 +343,146 @@ function parseSentence(raw,now){
   return {type,amount,category,method,date:qpDateStr(date),note:note.slice(0,60)};
 }
 
-// ▼▼▼ 把引號裡的文字換成你的 Apps Script 網頁應用程式網址（https://script.google.com/macros/s/.../exec）▼▼▼
-const API_URL = "https://script.google.com/macros/s/AKfycbwLSmlPXJoCcoC0zCFwHIajoAhanwY-FoQUnoXbc0zEHxpYXuWjTbOHKcKZDjO203xpTw/exec";
-// ▲▲▲
 
 const CATS={out:["餐飲","交通","購物","居家","娛樂","醫療","其他"],in:["薪資","獎金","投資","其他"]};
 const METHODS=["現金","信用卡","行動支付","轉帳"];
-const COLOR={"餐飲":"--c1","交通":"--c3","購物":"--c2","居家":"--c6","娛樂":"--c5","醫療":"--c4","其他":"--c7","薪資":"--c1","獎金":"--c2","投資":"--c3"};
+const RATIOS=[[50,"5:5"],[60,"6:4"],[40,"4:6"],[70,"7:3"],[30,"3:7"]];
+const COLOR={"餐飲":"--c1","交通":"--c3","購物":"--c2","居家":"--c6","娛樂":"--c5","醫療":"--c4","其他":"--c7","薪資":"--c1","獎金":"--c2","投資":"--c3","結清":"--c7"};
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.round(n).toLocaleString("zh-TW");
 const pad=n=>String(n).padStart(2,"0");
-const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
+const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const todayStr=()=>ymd(new Date());
+const other=p=>p===PEOPLE[0]?PEOPLE[1]:PEOPLE[0];
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
 
-let state={type:"out",cat:"餐飲",method:"現金"};
+let ME=PEOPLE.includes(store.get("ledger-me"))?store.get("ledger-me"):"";
+let state={type:"out",cat:"餐飲",method:"現金",payer:ME||PEOPLE[0],own:"shared",ratio:50,custom:false};
 let view=new Date(); view.setDate(1);
-let entries=[]; let openId=null;
+let weekOffset=0, tab="week";
+let entries=[]; let openId=null; let editingId=null;
 // 先在畫面上更新，背景再同步到試算表，讓操作不用等網路
-let serverEntries=[]; const pendingAdds=new Map(); const pendingDeletes=new Set();
-function merge(){entries=serverEntries.filter(e=>!pendingDeletes.has(e.id)).concat([...pendingAdds.values()]);render()}
+let serverEntries=[]; const pendingAdds=new Map(); const pendingDeletes=new Set(); const pendingUpdates=new Map();
+function merge(){entries=serverEntries.filter(e=>!pendingDeletes.has(e.id)).map(e=>pendingUpdates.get(e.id)||e).concat([...pendingAdds.values()]);render()}
 
-try{ $("who").value=localStorage.getItem("ledger-who")||""; }catch(e){}
-$("who").addEventListener("change",()=>{try{localStorage.setItem("ledger-who",$("who").value.trim())}catch(e){}});
-
-function chips(el,list,key){
-  el.innerHTML="";
-  list.forEach(v=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=v;
-    b.setAttribute("aria-pressed",String(state[key]===v));
-    b.onclick=()=>{state[key]=v;chips(el,list,key)};el.appendChild(b)});
+// ---------- 分帳計算 ----------
+// 每筆對「廷欠葶多少」的影響：正數代表廷該給葶，負數代表葶該給廷
+function shareOf(e){const s=Number(e.shareTing);return isNaN(s)?50:s}
+function tingOwes(e){
+  if(e.type==="out")return e.amount*shareOf(e)/100-(e.paidBy===PEOPLE[0]?e.amount:0);
+  if(e.type==="settle")return e.paidBy===PEOPLE[0]?-e.amount:e.amount;
+  return 0;
 }
-function setType(t){state.type=t;state.cat=CATS[t][0];
-  $("typeOut").setAttribute("aria-pressed",String(t==="out"));$("typeIn").setAttribute("aria-pressed",String(t==="in"));
-  chips($("cats"),CATS[t],"cat");$("methodField").hidden=(t==="in");}
+function tally(list){ // 回傳每人應負擔、實際付、共同支出合計、淨額
+  const t={owe:{},paid:{},shared:0,net:0};PEOPLE.forEach(p=>{t.owe[p]=0;t.paid[p]=0});
+  list.forEach(e=>{if(e.type!=="out")return;const s=shareOf(e);
+    t.owe[PEOPLE[0]]+=e.amount*s/100;t.owe[PEOPLE[1]]+=e.amount*(100-s)/100;
+    if(t.paid[e.paidBy]!==undefined)t.paid[e.paidBy]+=e.amount;
+    if(s>0&&s<100)t.shared+=e.amount;});
+  t.net=list.reduce((a,e)=>a+tingOwes(e),0);
+  return t;
+}
+function verdict(net,zeroText){const n=Math.round(net);
+  if(Math.abs(n)<1)return zeroText;
+  return n>0?`${PEOPLE[0]} 該給 ${PEOPLE[1]} <b class="num">${fmt(n)}</b> 元`:`${PEOPLE[1]} 該給 ${PEOPLE[0]} <b class="num">${fmt(-n)}</b> 元`;}
+function ptable(t,extraSettled){
+  let h='<div class="pr head"><span></span><span>應負擔</span><span>實際付</span></div>';
+  PEOPLE.forEach(p=>{h+=`<div class="pr"><span>${p}</span><span class="num">${fmt(t.owe[p])}</span><span class="num">${fmt(t.paid[p])}</span></div>`});
+  if(extraSettled)h+=`<div class="pr foot"><span>已還款</span><span class="num" style="grid-column:2/4">${extraSettled}</span></div>`;
+  return h;
+}
+function weekRange(off){const d=new Date();d.setHours(0,0,0,0);const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow+off*7);const e=new Date(d);e.setDate(d.getDate()+6);return [d,e]}
+function renderSettle(){
+  const [ws,we]=weekRange(weekOffset);const wk="日一二三四五六";
+  $("weekLabel").textContent=`${ws.getMonth()+1}/${ws.getDate()}（一）– ${we.getMonth()+1}/${we.getDate()}（日）`;
+  $("wNext").disabled=weekOffset>=0;
+  const s=ymd(ws),e=ymd(we);
+  const wl=entries.filter(x=>x.type==="out"&&x.date>=s&&x.date<=e);
+  const wt=tally(wl);
+  $("weekVerdict").innerHTML=wl.length?(weekOffset===0?"本週":"這週")+"："+verdict(wt.net,"剛好打平，不用互相給錢"):"這週還沒有支出";
+  $("weekTable").innerHTML=wl.length?ptable(wt)+`<p class="hint">共同支出 <span class="num">${fmt(wt.shared)}</span> 元。週結算只看這週的支出，不含還款紀錄。</p>`:"";
+  const all=entries.filter(x=>x.type==="out"||x.type==="settle");
+  const at=tally(all);
+  const settles=all.filter(x=>x.type==="settle").sort((a,b)=>b.date.localeCompare(a.date)||(b.createdAt-a.createdAt));
+  const settledSum=settles.reduce((a,x)=>a+x.amount,0);
+  $("allVerdict").innerHTML="目前累計："+verdict(at.net,"兩人互不相欠");
+  $("allTable").innerHTML=all.length?ptable(at,settles.length?fmt(settledSum)+" 元（"+settles.length+" 次）":""):"";
+  $("lastSettle").textContent=settles.length?"上次還款："+settles[0].date.slice(5).replace("-","/")+"，"+settles[0].paidBy+" 給 "+other(settles[0].paidBy)+" "+fmt(settles[0].amount)+" 元":"還沒有還款紀錄";
+  const n=Math.round(at.net);
+  $("settleBtn").hidden=Math.abs(n)<1||!$("settleForm").hidden;
+}
+$("tabWeek").onclick=()=>{tab="week";$("tabWeek").setAttribute("aria-pressed","true");$("tabAll").setAttribute("aria-pressed","false");$("weekPane").hidden=false;$("allPane").hidden=true};
+$("tabAll").onclick=()=>{tab="all";$("tabAll").setAttribute("aria-pressed","true");$("tabWeek").setAttribute("aria-pressed","false");$("weekPane").hidden=true;$("allPane").hidden=false};
+$("wPrev").onclick=()=>{weekOffset--;renderSettle()};
+$("wNext").onclick=()=>{if(weekOffset<0){weekOffset++;renderSettle()}};
+$("settleBtn").onclick=()=>{
+  const n=Math.round(tally(entries.filter(x=>x.type==="out"||x.type==="settle")).net);if(Math.abs(n)<1)return;
+  const debtor=n>0?PEOPLE[0]:PEOPLE[1];
+  $("settleForm").dataset.debtor=debtor;
+  $("settleText").textContent=`${debtor} 已經轉帳給 ${other(debtor)}，金額是：`;
+  $("settleAmt").value=String(Math.abs(n));
+  $("settleForm").hidden=false;$("settleBtn").hidden=true;
+};
+$("settleCancel").onclick=()=>{$("settleForm").hidden=true;renderSettle()};
+$("settleAmt").addEventListener("input",e=>{e.target.value=e.target.value.replace(/[^\d]/g,"").slice(0,9)});
+$("settleOk").onclick=()=>{
+  const amt=parseInt($("settleAmt").value,10);if(!amt||amt<=0){$("settleAmt").focus();return}
+  const debtor=$("settleForm").dataset.debtor;
+  $("settleForm").hidden=true;
+  addRecord({type:"settle",amount:amt,category:"結清",method:"",note:debtor+" → "+other(debtor),date:todayStr(),by:ME,paidBy:debtor,shareTing:""},"已記錄還款 "+fmt(amt)+" 元");
+};
+
+// ---------- 表單 ----------
+function chips(el,list,key,onPick){
+  el.innerHTML="";
+  list.forEach(item=>{const [val,label]=Array.isArray(item)?item:[item,item];
+    const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=label;
+    const on=key==="ratio"?(!state.custom&&state.ratio===val):key==="customRatio"?state.custom:state[key]===val;
+    b.setAttribute("aria-pressed",String(on));
+    b.onclick=()=>{if(onPick)onPick(val);else state[key]=val;drawForm()};el.appendChild(b)});
+}
+function drawForm(){
+  const out=state.type==="out";
+  $("typeOut").setAttribute("aria-pressed",String(out));$("typeIn").setAttribute("aria-pressed",String(!out));
+  chips($("cats"),CATS[state.type],"cat");
+  $("methodField").hidden=!out;chips($("methods"),METHODS,"method");
+  $("payerLabel").textContent=out?"誰付的":"誰的收入";
+  chips($("payers"),PEOPLE,"payer");
+  $("ownField").hidden=!out;
+  chips($("owns"),[["shared","共同"],[PEOPLE[0],PEOPLE[0]+"個人"],[PEOPLE[1],PEOPLE[1]+"個人"]],"own");
+  $("ratioField").hidden=!out||state.own!=="shared";
+  const rr=$("ratios");chips(rr,RATIOS,"ratio",v=>{state.ratio=v;state.custom=false});
+  const c=document.createElement("button");c.type="button";c.className="chip";c.textContent="自訂";c.setAttribute("aria-pressed",String(state.custom));
+  c.onclick=()=>{state.custom=true;$("customPct").value=String(state.ratio);drawForm();$("customPct").focus()};rr.appendChild(c);
+  $("customRow").hidden=!state.custom;
+  updateCustomHint();
+}
+function updateCustomHint(){const a=parseInt($("amount").value,10);
+  $("customHint").textContent=a>0?`（廷 ${fmt(a*state.ratio/100)}・葶 ${fmt(a*(100-state.ratio)/100)} 元）`:"";}
+$("customPct").addEventListener("input",e=>{let v=e.target.value.replace(/[^\d]/g,"").slice(0,3);if(v!==""&&+v>100)v="100";e.target.value=v;state.ratio=v===""?50:+v;updateCustomHint()});
+function setType(t){state.type=t;if(!CATS[t].includes(state.cat))state.cat=CATS[t][0];drawForm()}
 $("typeOut").onclick=()=>setType("out");$("typeIn").onclick=()=>setType("in");
-chips($("methods"),METHODS,"method");setType("out");
 $("date").value=todayStr();
 $("prev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
 $("next").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
+function shareFromState(){if(state.type!=="out")return "";if(state.own==="shared")return state.ratio;return state.own===PEOPLE[0]?100:0}
+function resetForm(){
+  editingId=null;$("editBar").hidden=true;$("submit").textContent="記一筆";
+  $("amount").value="";$("note").value="";$("date").value=todayStr();
+  state.payer=ME||PEOPLE[0];state.own="shared";state.ratio=50;state.custom=false;drawForm();
+}
+function loadForm(e){
+  state.type=e.type==="in"?"in":"out";state.cat=e.category;state.method=e.method||state.method;state.payer=e.paidBy||ME||PEOPLE[0];
+  const s=shareOf(e);
+  if(state.type==="out"){
+    if(s===100){state.own=PEOPLE[0]}else if(s===0){state.own=PEOPLE[1]}else{state.own="shared";state.ratio=s;state.custom=!RATIOS.some(r=>r[0]===s);if(state.custom)$("customPct").value=String(s)}
+  }
+  $("amount").value=String(e.amount);$("note").value=e.note||"";$("date").value=e.date;
+  drawForm();
+}
 
+// ---------- 畫面 ----------
 function monthKey(){return view.getFullYear()+"-"+pad(view.getMonth()+1)}
-
 function drawDonut(byCat,total){
   const r=52,C=2*Math.PI*r;let off=0;
   let html='<circle cx="70" cy="70" r="'+r+'" fill="none" stroke="var(--line)" stroke-width="18"/>';
@@ -309,13 +492,17 @@ function drawDonut(byCat,total){
   html+='<text x="70" y="84" text-anchor="middle" font-size="14" fill="var(--fg)" font-family="var(--f-num)">'+fmt(total)+'</text>';
   $("donut").innerHTML=html;
 }
-
+function ownLabel(e){const s=shareOf(e);if(s===100)return PEOPLE[0]+"個人";if(s===0)return PEOPLE[1]+"個人";
+  return "共同 "+(s/10%1===0?(s/10)+":"+((100-s)/10):s+"%");}
 function render(){
   $("monthLabel").textContent=view.getFullYear()+" 年 "+(view.getMonth()+1)+" 月";
+  $("switchMe").textContent="這支手機："+(ME||"未設定")+"（切換）";
   const mk=monthKey();const list=entries.filter(e=>e.date&&e.date.indexOf(mk)===0);
-  let tOut=0,tIn=0;const cat={};
-  list.forEach(e=>{if(e.type==="in")tIn+=e.amount;else{tOut+=e.amount;cat[e.category]=(cat[e.category]||0)+e.amount}});
+  let tOut=0,tIn=0;const cat={},inBy={};PEOPLE.forEach(p=>inBy[p]=0);
+  list.forEach(e=>{if(e.type==="in"){tIn+=e.amount;if(inBy[e.paidBy]!==undefined)inBy[e.paidBy]+=e.amount}
+    else if(e.type==="out"){tOut+=e.amount;cat[e.category]=(cat[e.category]||0)+e.amount}});
   $("tOut").textContent=fmt(tOut);$("tIn").textContent=fmt(tIn);
+  $("tInSplit").textContent=tIn?PEOPLE.map(p=>p+" "+fmt(inBy[p])).join("・"):"";
   const bal=tIn-tOut;$("tBal").textContent=(bal<0?"−":"")+fmt(Math.abs(bal));$("tBal").className="val num "+(bal<0?"out":"");
   const byCat=Object.entries(cat).sort((a,b)=>b[1]-a[1]);drawDonut(byCat,tOut);
   const lg=$("legend");lg.innerHTML="";
@@ -323,6 +510,7 @@ function render(){
     s.innerHTML='<i style="background:var('+(COLOR[c]||"--c7")+')"></i><span></span> <b class="num">'+Math.round(v/tOut*100)+'%</b>';
     s.children[1].textContent=c;lg.appendChild(s)});}
   else{lg.innerHTML='<span style="color:var(--muted)">這個月還沒有支出</span>'}
+  renderSettle();
 
   const L=$("ledger");L.innerHTML="";
   if(!list.length){L.innerHTML='<div class="empty"><strong>'+(mk===todayStr().slice(0,7)?"這個月還沒有紀錄":"這個月沒有紀錄")+'</strong>在上方輸入金額、選分類，按「記一筆」就會出現在這裡，兩個人記的都會一起顯示。</div>';return}
@@ -330,24 +518,30 @@ function render(){
   const wk="日一二三四五六";
   Object.keys(days).sort().reverse().forEach(d=>{
     const items=days[d].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    const dayOut=items.filter(e=>e.type!=="in").reduce((s,e)=>s+e.amount,0);
+    const dayOut=items.filter(e=>e.type==="out").reduce((s,e)=>s+e.amount,0);
     const dt=new Date(d+"T00:00:00");
     const sec=document.createElement("div");sec.className="day";
     sec.innerHTML='<h3><span>'+(dt.getMonth()+1)+'/'+dt.getDate()+'（'+wk[dt.getDay()]+'）</span><span class="num">'+(dayOut?"支出 "+fmt(dayOut):"")+'</span></h3>';
     const ul=document.createElement("ul");
     items.forEach(e=>{
-      const li=document.createElement("li");
-      if(e.pending)li.className="pending";
-      const meta=[e.type==="in"?"收入":e.method,e.note,e.by&&("由 "+e.by+" 記"),e.pending&&"同步中…"].filter(Boolean).join(" · ");
+      const li=document.createElement("li");if(e.pending)li.className="pending";
+      let meta,sign,cls;
+      if(e.type==="settle"){meta=["還款 "+e.paidBy+" → "+other(e.paidBy)];sign="⇄ ";cls="";}
+      else if(e.type==="in"){meta=[e.paidBy+"的收入",e.note];sign="+";cls="in";}
+      else{meta=[e.paidBy+"付・"+ownLabel(e),e.method,e.note];sign="−";cls="out";}
+      if(e.pending)meta.push("同步中…");
       const btn=document.createElement("button");btn.className="entry";btn.type="button";
-      btn.innerHTML='<i style="background:var('+(COLOR[e.category]||"--c7")+')"></i><div class="t"><div></div><div class="meta"></div></div><span class="a num '+(e.type==="in"?"in":"out")+'">'+(e.type==="in"?"+":"−")+fmt(e.amount)+'</span>';
-      btn.querySelector(".t div").textContent=e.category;btn.querySelector(".meta").textContent=meta;
+      btn.innerHTML='<i style="background:var('+(COLOR[e.category]||"--c7")+')"></i><div class="t"><div></div><div class="meta"></div></div><span class="a num '+cls+'">'+sign+fmt(e.amount)+'</span>';
+      btn.querySelector(".t div").textContent=e.category;btn.querySelector(".meta").textContent=meta.filter(Boolean).join(" · ");
       btn.onclick=()=>{if(e.pending)return;openId=openId===e.id?null:e.id;render()};
       li.appendChild(btn);
       if(openId===e.id){const c=document.createElement("div");c.className="confirm";
-        c.innerHTML='<button type="button">取消</button><button type="button" class="del">刪除這筆</button>';
-        c.children[0].onclick=()=>{openId=null;render()};
-        c.children[1].onclick=()=>{const id=e.id;pendingDeletes.add(id);openId=null;merge();
+        c.innerHTML=(e.type==="settle"?"":'<button type="button" class="edit">修改</button>')+'<button type="button" class="cancel">取消</button><button type="button" class="del">刪除這筆</button>';
+        c.querySelector(".cancel").onclick=()=>{openId=null;render()};
+        const ed=c.querySelector(".edit");
+        if(ed)ed.onclick=()=>{openId=null;editingId=e.id;loadForm(e);$("editBar").hidden=false;$("submit").textContent="儲存修改";say("");render();
+          $("form").scrollIntoView({behavior:"smooth",block:"start"})};
+        c.querySelector(".del").onclick=()=>{const id=e.id;pendingDeletes.add(id);openId=null;if(editingId===id)resetForm();merge();
           api({action:"delete",id:id}).then(r=>{pendingDeletes.delete(id);gotData(r)})
             .catch(err=>{pendingDeletes.delete(id);merge();if(err.message!=="wrong_key")say("刪除沒有成功，那筆紀錄已放回，請再試一次",true)})};
         li.appendChild(c)}
@@ -356,18 +550,23 @@ function render(){
 }
 
 function say(t,err){const m=$("msg");m.textContent=t;m.className="msg"+(err?" err":"");}
-function gotData(r){serverEntries=r||[];try{localStorage.setItem("ledger-cache",JSON.stringify(serverEntries))}catch(e){}
+function gotData(r){serverEntries=r||[];store.set("ledger-cache",JSON.stringify(serverEntries));
   const d=new Date();$("sync").textContent="已同步 "+pad(d.getHours())+":"+pad(d.getMinutes());merge()}
-let KEY="";try{KEY=localStorage.getItem("ledger-key")||""}catch(e){}
-function showLock(msg){$("lock").hidden=false;$("main").hidden=true;if(msg)$("lockMsg").textContent=msg;}
-function showMain(){$("lock").hidden=true;$("main").hidden=false;}
+
+// ---------- 連線 ----------
+let KEY=store.get("ledger-key")||"";
+function showLock(msg){$("lock").hidden=false;$("main").hidden=true;$("whoCard").hidden=true;if(msg)$("lockMsg").textContent=msg;}
+function showMain(){$("lock").hidden=true;if(!ME){askWho();return}$("whoCard").hidden=true;$("main").hidden=false;}
+function askWho(){$("main").hidden=true;$("whoCard").hidden=false;const w=$("whoPick");w.innerHTML="";
+  PEOPLE.forEach(p=>{const b=document.createElement("button");b.type="button";b.className="chip big";b.textContent="我是 "+p;
+    b.onclick=()=>{ME=p;store.set("ledger-me",p);if(!editingId)state.payer=p;drawForm();showMain();render()};w.appendChild(b)});}
 async function api(body){
   if(API_URL.indexOf("https://")!==0)throw new Error("no_url");
   body.key=KEY;
   const res=await fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)});
   const data=await res.json();
   if(!data.ok){
-    if(data.error==="wrong_key"){try{localStorage.removeItem("ledger-key")}catch(e){}KEY="";showLock("通關密碼不對，請再輸入一次。");}
+    if(data.error==="wrong_key"){store.del("ledger-key");KEY="";showLock("通關密碼不對，請再輸入一次。");}
     if(data.error==="passcode_not_set")showLock("後端還沒設定通關密碼：請在 Apps Script 的 Code.gs 第一段改好密碼，並重新部署。");
     throw new Error(data.error||"server");
   }
@@ -379,29 +578,41 @@ function load(){
   return api({action:"list"}).then(r=>{showMain();gotData(r)})
     .catch(err=>{if(err.message==="no_url")$("sync").textContent="App 還沒設定後端網址";else if(err.message!=="wrong_key"&&err.message!=="passcode_not_set")$("sync").textContent="讀取失敗，請檢查網路後按重新整理";});
 }
-$("unlock").onclick=()=>{const k=$("key").value.trim();if(!k)return;KEY=k;try{localStorage.setItem("ledger-key",k)}catch(e){}$("key").value="";$("lockMsg").textContent="確認中…";load()};
+$("unlock").onclick=()=>{const k=$("key").value.trim();if(!k)return;KEY=k;store.set("ledger-key",k);$("key").value="";$("lockMsg").textContent="確認中…";load()};
 $("key").addEventListener("keydown",e=>{if(e.key==="Enter")$("unlock").click()});
-$("logout").onclick=()=>{try{localStorage.removeItem("ledger-key")}catch(e){}KEY="";showLock("請輸入新的通關密碼。")};
+$("logout").onclick=()=>{store.del("ledger-key");KEY="";showLock("請輸入新的通關密碼。")};
+$("switchMe").onclick=()=>{ME="";store.del("ledger-me");askWho()};
 $("refresh").onclick=load;
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")load()});
 
-// 語音記帳：判斷後填入表單，讓使用者確認
+// ---------- 語音記帳 ----------
 function quickFill(){
   const text=$("quickText").value.trim();const out=$("quickResult");
   if(!text){$("quickText").focus();return}
   const r=parseSentence(text);
-  setType(r.type);
-  if(r.category&&CATS[r.type].includes(r.category)){state.cat=r.category;chips($("cats"),CATS[r.type],"cat")}
-  if(r.method){state.method=r.method;chips($("methods"),METHODS,"method")}
+  state.type=r.type;
+  if(r.category&&CATS[r.type].includes(r.category))state.cat=r.category;else state.cat=CATS[r.type][0];
+  if(r.method)state.method=r.method;
+  // 誰付的：「我付／我刷／我請」是自己，「她付／他付／對方付」是另一位
+  const me=ME||PEOPLE[0];
+  if(/(她|他|對方|妳|你)(付|出|刷|請|買單)/.test(text))state.payer=other(me);
+  else if(/我(付|出|刷|請|買單)/.test(text))state.payer=me;
+  else state.payer=me;
+  // 算誰的：「個人／自己的／請客」算付款人個人；「幫她買／幫他買」算對方個人；其餘共同
+  state.own="shared";state.ratio=50;state.custom=false;
+  if(/(我請|請客|請她|請他|個人|自己的|自己用)/.test(text))state.own=state.payer;
+  if(/幫(她|他|對方|妳|你)(買|付|出)/.test(text))state.own=other(state.payer);
+  let note=(r.note||"").replace(/我?請客/g,"").replace(/(她|他|對方|妳|你|我)(付|出|刷|請|買單)/g,"").replace(/(請客|個人|自己的|自己用)/g,"").replace(/\s+/g," ").trim();
   if(r.amount)$("amount").value=String(r.amount);
-  $("date").value=r.date;
-  $("note").value=r.note||"";
+  $("date").value=r.date;$("note").value=note;
+  drawForm();
   const d=new Date(r.date+"T00:00:00");
-  const parts=[(r.type==="in"?"收入":"支出")+"・"+r.category,
+  const parts=[(r.type==="in"?"收入":"支出")+"・"+state.cat,
     r.amount?fmt(r.amount)+" 元":"金額沒聽到",
-    r.type==="in"?"":(r.method||state.method)+(r.method?"":"（沿用）"),
+    r.type==="in"?state.payer+"的收入":state.payer+"付・"+(state.own==="shared"?"共同 5:5":state.own+"個人"),
+    r.type==="in"?"":state.method,
     (d.getMonth()+1)+"/"+d.getDate(),
-    r.note?"備註「"+r.note+"」":""].filter(Boolean);
+    note?"備註「"+note+"」":""].filter(Boolean);
   out.hidden=false;
   out.className="result"+(r.amount?"":" err");
   out.textContent=r.amount?"已填入："+parts.join("・")+"。沒問題就按「記一筆」。":"沒有找到金額，請在下方表單補上金額。已填入："+parts.join("・");
@@ -411,33 +622,45 @@ function quickFill(){
 $("quickGo").onclick=quickFill;
 $("quickText").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();quickFill()}});
 
-$("amount").addEventListener("input",e=>{e.target.value=e.target.value.replace(/[^\d]/g,"").slice(0,9)});
+// ---------- 新增／修改 ----------
+function addRecord(rec,okText){
+  const tempId="tmp-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
+  pendingAdds.set(tempId,Object.assign({},rec,{id:tempId,createdAt:Date.now(),pending:true}));
+  say(okText);merge();
+  return api({action:"add",rec:rec})
+    .then(r=>{pendingAdds.delete(tempId);gotData(r);return true})
+    .catch(err=>{pendingAdds.delete(tempId);merge();if(err.message!=="wrong_key")say("「"+rec.category+" "+fmt(rec.amount)+" 元」沒有存成功，請再試一次",true);throw err});
+}
+$("amount").addEventListener("input",e=>{e.target.value=e.target.value.replace(/[^\d]/g,"").slice(0,9);updateCustomHint()});
+$("editCancel").onclick=()=>{resetForm();say("")};
 $("form").addEventListener("submit",ev=>{
   ev.preventDefault();
+  if(!ME){askWho();return}
   const amount=parseInt($("amount").value,10);
   if(!amount||amount<=0){say("請先輸入金額",true);$("amount").focus();return}
   const date=$("date").value||todayStr();
-  const rec={type:state.type,amount:amount,category:state.cat,method:state.type==="in"?"":state.method,note:$("note").value.trim(),date:date,by:$("who").value.trim()};
-  try{localStorage.setItem("ledger-who",rec.by)}catch(e){}
-  const tempId="tmp-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
-  pendingAdds.set(tempId,Object.assign({},rec,{id:tempId,createdAt:Date.now(),pending:true}));
-  $("amount").value="";$("note").value="";$("quickText").value="";$("quickResult").hidden=true;
+  const rec={type:state.type,amount:amount,category:state.cat,method:state.type==="out"?state.method:"",note:$("note").value.trim(),date:date,by:ME,paidBy:state.payer,shareTing:shareFromState()};
   if(document.activeElement)document.activeElement.blur();
-  say("已記下 "+rec.category+" "+fmt(amount)+" 元");
   const d=new Date(date+"T00:00:00");if(d.getMonth()!==view.getMonth()||d.getFullYear()!==view.getFullYear()){view=new Date(d.getFullYear(),d.getMonth(),1)}
-  merge();
-  api({action:"add",rec:rec})
-    .then(r=>{pendingAdds.delete(tempId);gotData(r)})
-    .catch(err=>{pendingAdds.delete(tempId);merge();
-      if(err.message==="wrong_key")return;
-      // 沒存成功：把內容填回表單，按一次就能重送
-      setType(rec.type);state.cat=rec.category;chips($("cats"),CATS[rec.type],"cat");
-      if(rec.method){state.method=rec.method;chips($("methods"),METHODS,"method")}
-      $("amount").value=String(rec.amount);$("note").value=rec.note;$("date").value=rec.date;
-      say("「"+rec.category+" "+fmt(rec.amount)+" 元」沒有存成功，已填回表單，請再按一次「記一筆」",true)});
+  $("quickText").value="";$("quickResult").hidden=true;
+  if(editingId){
+    const id=editingId;const old=serverEntries.find(x=>x.id===id)||{};
+    pendingUpdates.set(id,Object.assign({},old,rec,{id:id,pending:true}));
+    resetForm();say("已修改 "+rec.category+" "+fmt(amount)+" 元");merge();
+    api({action:"update",id:id,rec:rec}).then(r=>{pendingUpdates.delete(id);gotData(r)})
+      .catch(err=>{pendingUpdates.delete(id);merge();if(err.message!=="wrong_key")say("修改沒有成功，請再試一次",true)});
+    return;
+  }
+  const keep={type:state.type,cat:state.cat,method:state.method,payer:state.payer,own:state.own,ratio:state.ratio,custom:state.custom};
+  resetForm();
+  addRecord(rec,"已記下 "+rec.category+" "+fmt(amount)+" 元").catch(err=>{
+    if(err.message==="wrong_key")return;
+    Object.assign(state,keep);$("amount").value=String(rec.amount);$("note").value=rec.note;$("date").value=rec.date;drawForm();
+    say("「"+rec.category+" "+fmt(rec.amount)+" 元」沒有存成功，已填回表單，請再按一次「記一筆」",true)});
 });
 
-try{const c=JSON.parse(localStorage.getItem("ledger-cache")||"null");if(Array.isArray(c)){serverEntries=c;$("sync").textContent="顯示上次的資料，更新中…"}}catch(e){}
+drawForm();
+try{const c=JSON.parse(store.get("ledger-cache")||"null");if(Array.isArray(c)){serverEntries=c;$("sync").textContent="顯示上次的資料，更新中…"}}catch(e){}
 merge();load();
 </script>
 </body>
