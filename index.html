@@ -59,7 +59,7 @@ form{background:var(--surface);border:1px solid var(--line);border-radius:14px;p
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .amt{display:flex;align-items:baseline;gap:8px;border-bottom:2px solid var(--line);padding-bottom:6px}
 .amt span{color:var(--muted);font-family:var(--f-num)}
-.amt input{border:0;background:none;color:var(--fg);font-family:var(--f-num);font-size:30px;width:100%;min-width:0;outline:none}
+.amt input[type=text]{border:0;border-radius:0;padding:0;background:none;color:var(--fg);font-family:var(--f-num);font-size:30px;width:100%;min-width:0;outline:none}
 .field{display:flex;flex-direction:column;gap:6px}
 .field>label{font-size:12px;color:var(--muted);letter-spacing:.08em}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -91,6 +91,17 @@ input[type=date],input[type=text]{border:1px solid var(--line);background:var(--
 .status{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
 .status button{background:none;border:0;color:var(--accent);font:inherit;cursor:pointer;padding:4px}
 [hidden]{display:none!important}
+.quick{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.quick label{font-size:12px;color:var(--muted);letter-spacing:.08em}
+.quick .qrow{display:flex;gap:8px}
+.quick input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:10px 12px;font:inherit;font-size:16px}
+.quick button{border:0;border-radius:8px;padding:0 14px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+.quick .hint{font-size:12px;color:var(--muted);margin:0}
+.quick .result{font-size:13px;margin:0;padding:8px 10px;border-radius:8px;background:var(--bg)}
+.quick .result.err{color:var(--out)}
+.flash{animation:flash 1.2s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.flash{animation:none}}
 body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
 .lock{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px 18px;display:flex;flex-direction:column;gap:12px}
 .lock h2{margin:0;font-size:17px}
@@ -129,6 +140,16 @@ body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
     <div class="legend" id="legend"></div>
   </section>
 
+  <section class="quick" aria-label="說一句話記帳">
+    <label for="quickText">說一句話記帳</label>
+    <div class="qrow">
+      <input id="quickText" type="text" enterkeyhint="done" placeholder="例如：中午便當 120 付現金" autocomplete="off">
+      <button type="button" id="quickGo">填入</button>
+    </div>
+    <p class="hint">點輸入框後，按鍵盤上的麥克風說話。判斷結果會填進下方表單，確認沒錯再按「記一筆」。</p>
+    <p class="result" id="quickResult" hidden></p>
+  </section>
+
   <form id="form" autocomplete="off">
     <div class="seg" role="group" aria-label="收支類型">
       <button type="button" id="typeOut" aria-pressed="true">支出</button>
@@ -153,6 +174,92 @@ body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
 </div>
 
 <script>
+// ===== 語音記帳：把一句話拆成欄位（規則判斷） =====
+const QP_CN_DIGIT={"零":0,"〇":0,"一":1,"二":2,"兩":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
+const QP_CN_UNIT={"十":10,"百":100,"千":1000,"萬":10000,"万":10000};
+// 「一千二」「三百五十」「兩萬三」「1千2」「1.5萬」這類寫法轉成數字
+function qpNum(str){
+  str=String(str).replace(/,/g,"");
+  if(/^\d+(\.\d+)?$/.test(str))return parseFloat(str);
+  let total=0,section=0,num=null,lastUnit=1,prevUnit=false;
+  const chars=[...str];
+  for(let i=0;i<chars.length;i++){
+    const ch=chars[i];
+    if(/[\d.]/.test(ch)){let j=i;while(j<chars.length&&/[\d.]/.test(chars[j]))j++;num=parseFloat(chars.slice(i,j).join(""));i=j-1;continue}
+    if(ch in QP_CN_DIGIT){if(QP_CN_DIGIT[ch]===0){prevUnit=false;num=null;continue}num=QP_CN_DIGIT[ch];continue}
+    if(ch in QP_CN_UNIT){const u=QP_CN_UNIT[ch];
+      if(u===10000){total+=((section+(num===null?0:num))||1)*10000;section=0;num=null;lastUnit=10000;prevUnit=true;continue}
+      section+=(num===null?1:num)*u;num=null;lastUnit=u;prevUnit=true;continue}
+  }
+  // 「一千二」的「二」代表兩百；「兩萬三」的「三」代表三千
+  if(num!==null)section+=(prevUnit&&lastUnit>=100)?num*lastUnit/10:num;
+  return total+section;
+}
+const QP_NUM="[\\d.,零〇一二兩两三四五六七八九十百千萬万]+";
+const QP_CATS={
+  "餐飲":["早餐","午餐","晚餐","宵夜","消夜","早午餐","便當","吃飯","吃","飯","麵","咖啡","飲料","手搖","珍奶","奶茶","火鍋","餐廳","外送","ubereats","uber eats","foodpanda","熊貓","麥當勞","肯德基","星巴克","點心","甜點","水果","滷味","雞排","小吃","聚餐","燒肉","拉麵","壽司"],
+  "交通":["捷運","公車","客運","計程車","小黃","uber","加油","油錢","停車","高鐵","台鐵","火車","機票","悠遊卡加值","過路費","etc","機車","洗車","保養"],
+  "購物":["買","衣服","褲子","鞋","包包","網購","蝦皮","momo","日用品","衛生紙","化妝品","保養品","3c","家樂福","全聯","好市多","costco","寶雅","大創","屈臣氏","康是美"],
+  "居家":["房租","租金","水費","電費","瓦斯","網路費","電話費","手機費","管理費","家具","清潔","修理"],
+  "娛樂":["電影","ktv","唱歌","遊戲","旅遊","旅行","門票","演唱會","netflix","spotify","訂閱","健身房","按摩"],
+  "醫療":["看醫生","看病","診所","醫院","藥局","藥","掛號","牙醫","牙齒","健檢","眼科"],
+  "薪資":["薪水","薪資","月薪","發薪"],
+  "獎金":["獎金","年終","分紅","績效獎金"],
+  "投資":["股利","股息","配息","利息","股票","賣股","基金","獲利"]
+};
+const QP_INCOME_WORDS=["收入","入帳","領到","領了","收到","賺","進帳"];
+const QP_METHODS={
+  "現金":["現金","付現"],
+  "信用卡":["信用卡","刷卡","刷"],
+  "行動支付":["行動支付","line pay","linepay","街口","apple pay","applepay","悠遊付","全支付","台灣pay","pi錢包","icash pay","全盈"],
+  "轉帳":["轉帳","匯款"]
+};
+function qpLongest(text,table){let best=null,len=0;
+  for(const k in table)for(const w of table[k]){if(w.length>len&&text.includes(w)){best=k;len=w.length}}return best}
+function qpDateStr(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+
+function parseSentence(raw,now){
+  now=now||new Date();
+  let t=String(raw||"").replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)).replace(/[，。、！？\s]+/g," ").trim();
+  const low=t.toLowerCase();
+  let rest=t;
+  // 日期
+  let date=new Date(now.getFullYear(),now.getMonth(),now.getDate()),dateHit=false,m;
+  const rel={"大前天":-3,"前天":-2,"昨天":-1,"昨晚":-1,"今天":0,"今晚":0,"今早":0};
+  for(const w of ["大前天","前天","昨天","昨晚","今天","今晚","今早"]){if(rest.includes(w)){date.setDate(date.getDate()+rel[w]);rest=rest.replace(w," ");dateHit=true;break}}
+  if(!dateHit&&(m=rest.match(new RegExp("("+QP_NUM+")月("+QP_NUM+")[日號号]?")))){
+    const mo=qpNum(m[1]),da=qpNum(m[2]);
+    if(mo>=1&&mo<=12&&da>=1&&da<=31){date=new Date(now.getFullYear(),mo-1,da);if(date>now)date.setFullYear(now.getFullYear()-1);rest=rest.replace(m[0]," ");dateHit=true}}
+  if(!dateHit&&(m=rest.match(new RegExp("("+QP_NUM+")[號号]")))){
+    const da=qpNum(m[1]);if(da>=1&&da<=31){date=new Date(now.getFullYear(),now.getMonth(),da);if(date>now)date.setMonth(date.getMonth()-1);rest=rest.replace(m[0]," ");dateHit=true}}
+  // 金額：優先找帶「元／塊」的，其次「花了／付了」後面的數字，最後任何數字
+  let amount=null;
+  const pats=[
+    new RegExp("(?:總共|一共|共|花了|花|付了|付|刷了)?\\s*(?:NT\\$?|\\$)?\\s*("+QP_NUM+")\\s*(?:塊錢|塊|元|圓|塊台幣|台幣|NT)","i"),
+    new RegExp("(?:總共|一共|共|花了|花|付了|刷了)\\s*(?:NT\\$?|\\$)?\\s*("+QP_NUM+")","i"),
+    new RegExp("(?:NT\\$?|\\$)\\s*("+QP_NUM+")","i"),
+    /(\d[\d.,]*)/,
+    new RegExp("((?:[零〇一二兩两三四五六七八九]?[十百千萬万])+[零〇一二兩两三四五六七八九]?)")
+  ];
+  for(const p of pats){const mm=rest.match(p);if(mm){const v=qpNum(mm[1]);if(v>0){amount=Math.round(v);rest=rest.replace(mm[0]," ");break}}}
+  // 收入或支出、分類
+  const restLow=rest.toLowerCase();
+  let category=qpLongest(restLow,QP_CATS);
+  const incomeCats=["薪資","獎金","投資"];
+  let type=(incomeCats.includes(category)||QP_INCOME_WORDS.some(w=>restLow.includes(w)))?"in":"out";
+  if(type==="in"&&!incomeCats.includes(category))category="其他";
+  if(type==="out"&&!category)category="其他";
+  // 付款方式
+  let method=type==="out"?qpLongest(restLow,QP_METHODS):null;
+  // 備註：去掉付款方式和連接詞後剩下的文字
+  let note=rest;
+  if(method){for(const w of QP_METHODS[method].slice().sort((a,b)=>b.length-a.length)){note=note.replace(new RegExp("(?:用|付|是|拿)?"+w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"i")," ")}}
+  note=note.replace(/(我|今天|中午|晚上|早上)?\s*(收到|領到|領了|入帳|進帳)\s*/g," ");
+  note=note.replace(/\s+/g," ").trim().replace(/^(了|的|用|付|是|在)\s*/,"").replace(/\s*(了|的|用|付|是|在|刷)$/,"").trim();
+  if(!note&&category!=="其他")note="";
+  return {type,amount,category,method,date:qpDateStr(date),note:note.slice(0,60)};
+}
+
 // ▼▼▼ 把引號裡的文字換成你的 Apps Script 網頁應用程式網址（https://script.google.com/macros/s/.../exec）▼▼▼
 const API_URL = "https://script.google.com/macros/s/AKfycbwLSmlPXJoCcoC0zCFwHIajoAhanwY-FoQUnoXbc0zEHxpYXuWjTbOHKcKZDjO203xpTw/exec";
 // ▲▲▲
@@ -272,6 +379,32 @@ $("logout").onclick=()=>{try{localStorage.removeItem("ledger-key")}catch(e){}KEY
 $("refresh").onclick=load;
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")load()});
 
+// 語音記帳：判斷後填入表單，讓使用者確認
+function quickFill(){
+  const text=$("quickText").value.trim();const out=$("quickResult");
+  if(!text){$("quickText").focus();return}
+  const r=parseSentence(text);
+  setType(r.type);
+  if(r.category&&CATS[r.type].includes(r.category)){state.cat=r.category;chips($("cats"),CATS[r.type],"cat")}
+  if(r.method){state.method=r.method;chips($("methods"),METHODS,"method")}
+  if(r.amount)$("amount").value=String(r.amount);
+  $("date").value=r.date;
+  $("note").value=r.note||"";
+  const d=new Date(r.date+"T00:00:00");
+  const parts=[(r.type==="in"?"收入":"支出")+"・"+r.category,
+    r.amount?fmt(r.amount)+" 元":"金額沒聽到",
+    r.type==="in"?"":(r.method||state.method)+(r.method?"":"（沿用）"),
+    (d.getMonth()+1)+"/"+d.getDate(),
+    r.note?"備註「"+r.note+"」":""].filter(Boolean);
+  out.hidden=false;
+  out.className="result"+(r.amount?"":" err");
+  out.textContent=r.amount?"已填入："+parts.join("・")+"。沒問題就按「記一筆」。":"沒有找到金額，請在下方表單補上金額。已填入："+parts.join("・");
+  const f=$("form");f.classList.remove("flash");void f.offsetWidth;f.classList.add("flash");
+  $("quickText").blur();
+}
+$("quickGo").onclick=quickFill;
+$("quickText").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();quickFill()}});
+
 $("amount").addEventListener("input",e=>{e.target.value=e.target.value.replace(/[^\d]/g,"").slice(0,9)});
 $("form").addEventListener("submit",ev=>{
   ev.preventDefault();if(busy)return;
@@ -283,7 +416,7 @@ $("form").addEventListener("submit",ev=>{
   busy=true;$("submit").disabled=true;say("儲存中…");
   api({action:"add",rec:rec})
     .then(r=>{busy=false;$("submit").disabled=false;$("amount").value="";$("note").value="";
-      say("已記下 "+rec.category+" "+fmt(amount)+" 元");
+      say("已記下 "+rec.category+" "+fmt(amount)+" 元");$("quickText").value="";$("quickResult").hidden=true;
       const d=new Date(date+"T00:00:00");if(d.getMonth()!==view.getMonth()||d.getFullYear()!==view.getFullYear()){view=new Date(d.getFullYear(),d.getMonth(),1)}
       gotData(r)})
     .catch(err=>{busy=false;$("submit").disabled=false;if(err.message!=="wrong_key")say("沒有存成功，請再按一次",true)});
