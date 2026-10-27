@@ -99,6 +99,7 @@ input[type=date],input[type=text]{border:1px solid var(--line);background:var(--
 .quick .hint{font-size:12px;color:var(--muted);margin:0}
 .quick .result{font-size:13px;margin:0;padding:8px 10px;border-radius:8px;background:var(--bg)}
 .quick .result.err{color:var(--out)}
+.day li.pending{opacity:.55}
 .flash{animation:flash 1.2s ease-out}
 @keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.flash{animation:none}}
@@ -274,7 +275,10 @@ const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth
 
 let state={type:"out",cat:"餐飲",method:"現金"};
 let view=new Date(); view.setDate(1);
-let entries=[]; let openId=null; let busy=false;
+let entries=[]; let openId=null;
+// 先在畫面上更新，背景再同步到試算表，讓操作不用等網路
+let serverEntries=[]; const pendingAdds=new Map(); const pendingDeletes=new Set();
+function merge(){entries=serverEntries.filter(e=>!pendingDeletes.has(e.id)).concat([...pendingAdds.values()]);render()}
 
 try{ $("who").value=localStorage.getItem("ledger-who")||""; }catch(e){}
 $("who").addEventListener("change",()=>{try{localStorage.setItem("ledger-who",$("who").value.trim())}catch(e){}});
@@ -333,25 +337,27 @@ function render(){
     const ul=document.createElement("ul");
     items.forEach(e=>{
       const li=document.createElement("li");
-      const meta=[e.type==="in"?"收入":e.method,e.note,e.by&&("由 "+e.by+" 記")].filter(Boolean).join(" · ");
+      if(e.pending)li.className="pending";
+      const meta=[e.type==="in"?"收入":e.method,e.note,e.by&&("由 "+e.by+" 記"),e.pending&&"同步中…"].filter(Boolean).join(" · ");
       const btn=document.createElement("button");btn.className="entry";btn.type="button";
       btn.innerHTML='<i style="background:var('+(COLOR[e.category]||"--c7")+')"></i><div class="t"><div></div><div class="meta"></div></div><span class="a num '+(e.type==="in"?"in":"out")+'">'+(e.type==="in"?"+":"−")+fmt(e.amount)+'</span>';
       btn.querySelector(".t div").textContent=e.category;btn.querySelector(".meta").textContent=meta;
-      btn.onclick=()=>{openId=openId===e.id?null:e.id;render()};
+      btn.onclick=()=>{if(e.pending)return;openId=openId===e.id?null:e.id;render()};
       li.appendChild(btn);
       if(openId===e.id){const c=document.createElement("div");c.className="confirm";
         c.innerHTML='<button type="button">取消</button><button type="button" class="del">刪除這筆</button>';
         c.children[0].onclick=()=>{openId=null;render()};
-        c.children[1].onclick=()=>{c.children[1].disabled=true;
-          api({action:"delete",id:e.id}).then(r=>{openId=null;gotData(r)})
-            .catch(err=>{c.children[1].disabled=false;if(err.message!=="wrong_key")say("刪除失敗，請稍後再試一次",true)})};
+        c.children[1].onclick=()=>{const id=e.id;pendingDeletes.add(id);openId=null;merge();
+          api({action:"delete",id:id}).then(r=>{pendingDeletes.delete(id);gotData(r)})
+            .catch(err=>{pendingDeletes.delete(id);merge();if(err.message!=="wrong_key")say("刪除沒有成功，那筆紀錄已放回，請再試一次",true)})};
         li.appendChild(c)}
       ul.appendChild(li)});
     sec.appendChild(ul);L.appendChild(sec)});
 }
 
 function say(t,err){const m=$("msg");m.textContent=t;m.className="msg"+(err?" err":"");}
-function gotData(r){entries=r||[];const d=new Date();$("sync").textContent="已同步 "+pad(d.getHours())+":"+pad(d.getMinutes());render()}
+function gotData(r){serverEntries=r||[];try{localStorage.setItem("ledger-cache",JSON.stringify(serverEntries))}catch(e){}
+  const d=new Date();$("sync").textContent="已同步 "+pad(d.getHours())+":"+pad(d.getMinutes());merge()}
 let KEY="";try{KEY=localStorage.getItem("ledger-key")||""}catch(e){}
 function showLock(msg){$("lock").hidden=false;$("main").hidden=true;if(msg)$("lockMsg").textContent=msg;}
 function showMain(){$("lock").hidden=true;$("main").hidden=false;}
@@ -407,22 +413,32 @@ $("quickText").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefau
 
 $("amount").addEventListener("input",e=>{e.target.value=e.target.value.replace(/[^\d]/g,"").slice(0,9)});
 $("form").addEventListener("submit",ev=>{
-  ev.preventDefault();if(busy)return;
+  ev.preventDefault();
   const amount=parseInt($("amount").value,10);
   if(!amount||amount<=0){say("請先輸入金額",true);$("amount").focus();return}
   const date=$("date").value||todayStr();
   const rec={type:state.type,amount:amount,category:state.cat,method:state.type==="in"?"":state.method,note:$("note").value.trim(),date:date,by:$("who").value.trim()};
   try{localStorage.setItem("ledger-who",rec.by)}catch(e){}
-  busy=true;$("submit").disabled=true;say("儲存中…");
+  const tempId="tmp-"+Date.now()+"-"+Math.random().toString(36).slice(2,7);
+  pendingAdds.set(tempId,Object.assign({},rec,{id:tempId,createdAt:Date.now(),pending:true}));
+  $("amount").value="";$("note").value="";$("quickText").value="";$("quickResult").hidden=true;
+  if(document.activeElement)document.activeElement.blur();
+  say("已記下 "+rec.category+" "+fmt(amount)+" 元");
+  const d=new Date(date+"T00:00:00");if(d.getMonth()!==view.getMonth()||d.getFullYear()!==view.getFullYear()){view=new Date(d.getFullYear(),d.getMonth(),1)}
+  merge();
   api({action:"add",rec:rec})
-    .then(r=>{busy=false;$("submit").disabled=false;$("amount").value="";$("note").value="";
-      say("已記下 "+rec.category+" "+fmt(amount)+" 元");$("quickText").value="";$("quickResult").hidden=true;
-      const d=new Date(date+"T00:00:00");if(d.getMonth()!==view.getMonth()||d.getFullYear()!==view.getFullYear()){view=new Date(d.getFullYear(),d.getMonth(),1)}
-      gotData(r)})
-    .catch(err=>{busy=false;$("submit").disabled=false;if(err.message!=="wrong_key")say("沒有存成功，請再按一次",true)});
+    .then(r=>{pendingAdds.delete(tempId);gotData(r)})
+    .catch(err=>{pendingAdds.delete(tempId);merge();
+      if(err.message==="wrong_key")return;
+      // 沒存成功：把內容填回表單，按一次就能重送
+      setType(rec.type);state.cat=rec.category;chips($("cats"),CATS[rec.type],"cat");
+      if(rec.method){state.method=rec.method;chips($("methods"),METHODS,"method")}
+      $("amount").value=String(rec.amount);$("note").value=rec.note;$("date").value=rec.date;
+      say("「"+rec.category+" "+fmt(rec.amount)+" 元」沒有存成功，已填回表單，請再按一次「記一筆」",true)});
 });
 
-render();load();
+try{const c=JSON.parse(localStorage.getItem("ledger-cache")||"null");if(Array.isArray(c)){serverEntries=c;$("sync").textContent="顯示上次的資料，更新中…"}}catch(e){}
+merge();load();
 </script>
 </body>
 </html>
